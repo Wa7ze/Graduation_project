@@ -5,26 +5,36 @@ from .models import (
     OutfitPlanner, Post, Like, Follow
 )
 
-# ✅ User Serializer
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email']
-
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
         fields = [
-            'username',
+            'user',  # full user object
             'gender',
             'modesty_preference',
             'profile_picture',
             'bio',
             'location',
         ]
+
+    def get_user(self, obj):
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'email': obj.user.email,
+        }
+
+        # ✅ User Serializer
+class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True, source='userprofile')
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'profile']
+
 # ✅ Category Serializer
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -147,21 +157,5 @@ class FollowSerializer(serializers.ModelSerializer):
         model = Follow
         fields = ['id', 'follower', 'following', 'following_id', 'created_at']
 
-from .models import Post, Like, Follow
 
-# ✅ Like Serializer
-class LikeSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-
-    class Meta:
-        model = Like
-        fields = '_all_'
-
-# ✅ Follow Serializer
-class FollowSerializer(serializers.ModelSerializer):
-    follower = UserSerializer(read_only=True)
-    following = UserSerializer(read_only=True)
-
-    class Meta:
-        model = Follow
-        fields = '_all_'
+#

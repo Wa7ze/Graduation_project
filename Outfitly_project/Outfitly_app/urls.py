@@ -1,9 +1,9 @@
 from django.urls import path
 from .views import (
     SubCategoryByCategoryView, register_user, login_user, get_user_profile, update_user_profile,
-    upload_clothing, get_wardrobe, update_clothing,
+    upload_clothing, get_wardrobe, update_clothing,get_wardrobe_by_user,get_outfits_by_user,
     create_outfit, get_outfits,delete_outfit, delete_clothing, ai_generate_outfit,
-    plan_outfit, get_planned_outfits,
+    plan_outfit, get_planned_outfits,delete_post,get_user_profile_by_id,
     create_post, get_all_posts, toggle_like_post, toggle_follow, get_following_feed
 )
 from rest_framework.routers import DefaultRouter
@@ -17,6 +17,10 @@ urlpatterns = [
     path('login/', login_user, name='login_user'),
     path('profile/', get_user_profile, name='get_user_profile'),
     path('profile/update/', update_user_profile, name='update_user_profile'),
+    path('users/<int:user_id>/profile/', get_user_profile_by_id, name='user_profile_by_id'),
+    # New routes to get another user's wardrobe and outfits
+    path('users/<int:user_id>/wardrobe/', get_wardrobe_by_user, name='get_wardrobe_by_user'),
+    path('users/<int:user_id>/outfits/', get_outfits_by_user, name='get_outfits_by_user'),
 
     # Wardrobe APIs
     path('wardrobe/upload/', upload_clothing, name='upload_clothing'),
@@ -38,6 +42,8 @@ urlpatterns = [
     path('feed/posts/create/', create_post, name='create_post'),
     path('feed/posts/', get_all_posts, name='get_all_posts'),
     path('feed/posts/<int:post_id>/like/', toggle_like_post, name='toggle_like_post'),
+    path('feed/posts/<int:post_id>/delete/', delete_post, name='delete_post'),
+
     path('feed/follow/<int:user_id>/', toggle_follow, name='toggle_follow'),
     path('feed/following/', get_following_feed, name='get_following_feed'),
     path('categories/<int:category_id>/subcategories/', SubCategoryByCategoryView.as_view(), name='subcategories_by_category'),

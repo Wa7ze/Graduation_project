@@ -100,6 +100,44 @@ def get_user_profile(request):
     except UserProfile.DoesNotExist:
         return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_profile_by_id(request, user_id):
+    try:
+        user = User.objects.get(pk=user_id)
+        profile = UserProfile.objects.get(user__id=user_id)
+        serializer = UserProfileSerializer(profile)
+        return Response(serializer.data)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=404)
+    except UserProfile.DoesNotExist:
+        return Response({'error': 'Profile not found'}, status=404)
+    
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_wardrobe_by_user(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=404)
+
+    wardrobe_items = Wardrobe.objects.filter(user=user)
+    serializer = WardrobeSerializer(wardrobe_items, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_outfits_by_user(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=404)
+
+    outfits = Outfit.objects.filter(user=user)
+    serializer = OutfitSerializer(outfits, many=True)
+    return Response(serializer.data)
 
 # ✅ Update profile for logged-in user
 @api_view(['PUT'])
@@ -154,21 +192,28 @@ def upload_clothing(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_wardrobe(request):
-    print(f"🔍 Authenticated user: {request.user} (ID: {request.user.id})")
+    user_id = request.query_params.get('user_id')
+    target_user = request.user
+
+    if user_id and int(user_id) != request.user.id:
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=404)
+
+    items = Wardrobe.objects.filter(user=target_user)
+
     subcategory_id = request.query_params.get('subcategory_id')
     category_id = request.query_params.get('category_id')
-
-    items = Wardrobe.objects.filter(user=request.user)
 
     if subcategory_id:
         items = items.filter(subcategory_id=subcategory_id)
     elif category_id:
         items = items.filter(category_id=category_id)
-    print(f"🧥 Found {items.count()} items for user {request.user.username}")
-    for item in items:
-        print(f"🧢 Item: {item.id}, Category: {item.category}, Photo: {item.photo_path}")
+
     serializer = WardrobeSerializer(items, many=True)
     return Response(serializer.data)
+
 
 # ✅ Update Clothing Item
 @api_view(['PUT'])
@@ -304,11 +349,23 @@ def create_post(request):
         return Response({'error': 'Outfit not found or not owned by user'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_all_posts(request):
-    """Retrieve all posts from all users (public feed)"""
-    posts = Post.objects.all().order_by('-created_at')
+    posts = Post.objects.select_related('user__userprofile').all().order_by('-created_at')
     serializer = PostSerializer(posts, many=True)
     return Response(serializer.data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_post(request, post_id):
+    """Allow a user to delete their own post"""
+    try:
+        post = Post.objects.get(id=post_id, user=request.user)
+        post.delete()
+        return Response({'message': 'Post deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post not found or not owned by user'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

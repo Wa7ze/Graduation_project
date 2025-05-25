@@ -413,17 +413,28 @@ def get_following(request, user_id):
     return Response(serializer.data)
 
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def search_users(request):
-    """Search users by username"""
     query = request.GET.get('q', '')
-    if not query:
-        return Response({'error': 'Search query required'}, status=400)
+    users = User.objects.filter(username__icontains=query)
 
-    users = User.objects.filter(username__icontains=query).exclude(id=request.user.id)
-    serializer = UserSerializer(users, many=True)
-    return Response(serializer.data)
+    result = []
+    for user in users:
+        profile = getattr(user, 'profile', None)  # ✅ FIXED HERE
+        profile_picture_url = (
+            request.build_absolute_uri(profile.profile_picture.url)
+            if profile and profile.profile_picture else None
+        )
+        result.append({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'profile_picture': profile_picture_url
+        })
+
+    return Response(result)
 
 
 # ✨ NEW: Get Wardrobe Items by SubCategory ✨

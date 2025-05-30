@@ -3,7 +3,7 @@ from .views import (
     SubCategoryByCategoryView, register_user, login_user, get_user_profile, update_user_profile,
     upload_clothing, get_wardrobe,get_wardrobe_by_user,get_outfits_by_user,delete_planned_outfit,
     create_outfit, get_outfits,delete_outfit, delete_clothing, ai_generate_outfit,
-    plan_outfit, get_planned_outfits,delete_post,get_user_profile_by_id,get_outfit_by_id,
+    plan_outfit, get_planned_outfits,delete_post,get_user_profile_by_id,get_outfit_by_id,get_post_likes,
     create_post, get_all_posts, toggle_like_post, toggle_follow, get_combined_feed,search_users,get_followers,get_following
 )
 from rest_framework.routers import DefaultRouter
@@ -46,6 +46,7 @@ urlpatterns = [
     path('feed/posts/', get_all_posts, name='get_all_posts'),
     path('feed/posts/<int:post_id>/like/', toggle_like_post, name='toggle_like_post'),
     path('feed/posts/<int:post_id>/delete/', delete_post, name='delete_post'),
+    path('feed/posts/<int:post_id>/likes/', get_post_likes, name='get_post_likes'),
 
     path('feed/follow/<int:user_id>/', toggle_follow, name='toggle_follow'),
     path('feed/combined/', get_combined_feed, name='get_combined_feed'),

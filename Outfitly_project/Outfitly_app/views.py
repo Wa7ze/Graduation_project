@@ -495,3 +495,24 @@ def get_outfit_by_id(request, pk):
         return Response(serializer.data)
     except Outfit.DoesNotExist:
         return Response({'error': 'Outfit not found'}, status=404)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_post_likes(request, post_id):
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"error": "Post not found"}, status=404)
+
+    liked_users = post.likes.all().select_related('user__profile')
+    data = [
+        {
+            "id": like.user.id,
+            "username": like.user.username,
+            "profile_picture": (
+                request.build_absolute_uri(like.user.profile.profile_picture.url)
+                if like.user.profile.profile_picture else None
+            )
+        }
+        for like in liked_users
+    ]
+    return Response(data)

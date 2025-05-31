@@ -36,8 +36,6 @@ urlpatterns = [
     path('outfits/<int:pk>/', delete_outfit, name='delete_outfit'),
     path('outfits/<int:pk>/', get_outfit_by_id, name='get_outfit_by_id'),
 
-    # ✅ AI Outfit Generation Endpoint
-    path('api/ai-generate-outfit/', generate_ai_outfit, name='generate_ai_outfit'),
 
     # Outfit Planner APIs
     path('planner/', get_planned_outfits, name='get_planned_outfits'),

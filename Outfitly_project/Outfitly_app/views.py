@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Follow, Like, Post, Wardrobe, Outfit, OutfitPlanner, UserProfile , Category, SubCategory
-from .serializers import CategoryWithSubSerializer, PostSerializer, WardrobeSerializer, OutfitSerializer, OutfitPlannerSerializer, UserProfileSerializer,CategorySerializer, SubCategorySerializer
+from .serializers import CategoryWithSubSerializer, PostSerializer, WardrobeSerializer, OutfitSerializer, OutfitPlannerSerializer, UserProfileSerializer,CategorySerializer, SubCategorySerializer, UserSerializer
 from django.contrib.auth import authenticate, login
 from django.http import JsonResponse
 import json
@@ -96,11 +96,49 @@ def login_user(request):
 def get_user_profile(request):
     try:
         profile = request.user.profile
-        serializer = UserProfileSerializer(profile)
+        serializer = UserProfileSerializer(profile, context={'request': request})
         return Response(serializer.data)
     except UserProfile.DoesNotExist:
         return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_profile_by_id(request, user_id):
+    try:
+        user = User.objects.get(pk=user_id)
+        profile = UserProfile.objects.get(user__id=user_id)
+        serializer = UserProfileSerializer(profile, context={'request': request})
+        return Response(serializer.data)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=404)
+    except UserProfile.DoesNotExist:
+        return Response({'error': 'Profile not found'}, status=404)
+    
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_wardrobe_by_user(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=404)
+
+    wardrobe_items = Wardrobe.objects.filter(user=user)
+    serializer = WardrobeSerializer(wardrobe_items, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_outfits_by_user(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=404)
+
+    outfits = Outfit.objects.filter(user=user)
+    serializer = OutfitSerializer(outfits, many=True)
+    return Response(serializer.data)
 
 # ✅ Update profile for logged-in user
 @api_view(['PUT'])
@@ -155,36 +193,28 @@ def upload_clothing(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_wardrobe(request):
-    print(f"🔍 Authenticated user: {request.user} (ID: {request.user.id})")
+    user_id = request.query_params.get('user_id')
+    target_user = request.user
+
+    if user_id and int(user_id) != request.user.id:
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=404)
+
+    items = Wardrobe.objects.filter(user=target_user)
+
     subcategory_id = request.query_params.get('subcategory_id')
     category_id = request.query_params.get('category_id')
-
-    items = Wardrobe.objects.filter(user=request.user)
 
     if subcategory_id:
         items = items.filter(subcategory_id=subcategory_id)
     elif category_id:
         items = items.filter(category_id=category_id)
-    print(f"🧥 Found {items.count()} items for user {request.user.username}")
-    for item in items:
-        print(f"🧢 Item: {item.id}, Category: {item.category}, Photo: {item.photo_path}")
+
     serializer = WardrobeSerializer(items, many=True)
     return Response(serializer.data)
 
-# ✅ Update Clothing Item
-@api_view(['PUT'])
-@permission_classes([IsAuthenticated])
-def update_clothing(request, item_id):
-    """Allows users to edit details of a wardrobe item"""
-    try:
-        item = Wardrobe.objects.get(id=item_id, user=request.user)
-        serializer = WardrobeSerializer(instance=item, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    except Wardrobe.DoesNotExist:
-        return Response({'error': 'Clothing item not found'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -255,27 +285,15 @@ def get_planned_outfits(request):
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def delete_planned_outfit(request, plan_id):
+def delete_planned_outfit(request, pk):
     try:
-        plan = OutfitPlanner.objects.get(id=plan_id, user=request.user)
+        plan = OutfitPlanner.objects.get(pk=pk, user=request.user)
         plan.delete()
-        return Response({'message': 'Planned outfit deleted successfully'}, status=200)
+        return Response(status=204)
     except OutfitPlanner.DoesNotExist:
         return Response({'error': 'Planned outfit not found'}, status=404)
 
-@api_view(['PUT'])
-@permission_classes([IsAuthenticated])
-def update_planned_outfit(request, plan_id):
-    try:
-        plan = OutfitPlanner.objects.get(id=plan_id, user=request.user)
-        serializer = OutfitPlannerSerializer(plan, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=400)
-    except OutfitPlanner.DoesNotExist:
-        return Response({'error': 'Planned outfit not found'}, status=404)
-    
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])  # Optional, but helpful if you still allow image upload
@@ -305,11 +323,23 @@ def create_post(request):
         return Response({'error': 'Outfit not found or not owned by user'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_all_posts(request):
-    """Retrieve all posts from all users (public feed)"""
-    posts = Post.objects.all().order_by('-created_at')
+    posts = Post.objects.select_related('user__userprofile').all().order_by('-created_at')
     serializer = PostSerializer(posts, many=True)
     return Response(serializer.data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_post(request, post_id):
+    """Allow a user to delete their own post"""
+    try:
+        post = Post.objects.get(id=post_id, user=request.user)
+        post.delete()
+        return Response({'message': 'Post deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post not found or not owned by user'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -328,6 +358,7 @@ def toggle_like_post(request, post_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def toggle_follow(request, user_id):
+    print(f"Follow endpoint hit by user {request.user.id} for target {user_id}")  # ADD THIS
     """Follow or unfollow a user"""
     try:
         to_follow = User.objects.get(id=user_id)
@@ -344,12 +375,68 @@ def toggle_follow(request, user_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_following_feed(request):
-    """Get posts only from followed users"""
-    following_users = Follow.objects.filter(follower=request.user).values_list('following_id', flat=True)
-    posts = Post.objects.filter(user_id__in=following_users).order_by('-created_at')
-    serializer = PostSerializer(posts, many=True)
+def get_combined_feed(request):
+    """Get combined feed: following posts first, then discover posts"""
+    following_ids = Follow.objects.filter(follower=request.user).values_list('following_id', flat=True)
+
+    # Posts from users the current user follows
+    following_posts = Post.objects.filter(models.Q(user_id__in=following_ids) | models.Q(user=request.user)).order_by('-created_at')
+
+    # Discover posts: users not followed and not the user themselves
+    discover_posts = Post.objects.exclude(user_id__in=following_ids).exclude(user=request.user).order_by('-created_at')[:20]
+
+    serializer_following = PostSerializer(following_posts, many=True, context={'request': request})
+    serializer_discover = PostSerializer(discover_posts, many=True, context={'request': request})
+
+
+    return Response({
+        'following': serializer_following.data,
+        'discover': serializer_discover.data,
+        'has_following': following_posts.exists()
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_followers(request, user_id):
+    followers = Follow.objects.filter(following_id=user_id).select_related('follower__profile')
+    profiles = [f.follower.profile for f in followers]
+    serializer = UserProfileSerializer(profiles, many=True, context={'request': request})
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_following(request, user_id):
+    following = Follow.objects.filter(follower_id=user_id).select_related('following__profile')
+    profiles = [f.following.profile for f in following]
+    serializer = UserProfileSerializer(profiles, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def search_users(request):
+    query = request.GET.get('q', '')
+    users = User.objects.filter(username__icontains=query)
+
+    result = []
+    for user in users:
+        profile = getattr(user, 'profile', None)  # ✅ FIXED HERE
+        profile_picture_url = (
+            request.build_absolute_uri(profile.profile_picture.url)
+            if profile and profile.profile_picture else None
+        )
+        result.append({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'profile_picture': profile_picture_url
+        })
+
+    return Response(result)
+
+
 # ✨ NEW: Get Wardrobe Items by SubCategory ✨
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])

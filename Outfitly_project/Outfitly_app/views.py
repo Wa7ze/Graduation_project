@@ -399,29 +399,33 @@ def get_all_posts(request):
 
     return Response(response_data, status=status.HTTP_200_OK)
 
-# ✅ Add this at the very bottom of the file
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def generate_ai_outfit(request):
-    """
-    Accepts: { selected_item_id (optional), mode: 'truly' or 'help' }
-    Returns: list of wardrobe item IDs forming the best outfit
-    """
-    selected_item_id = request.data.get('selected_item_id')
-    mode = request.data.get('mode', 'truly')
+def get_outfit_by_id(request, pk):
+    try:
+        outfit = Outfit.objects.get(pk=pk)
+        serializer = OutfitSerializer(outfit)
+        return Response(serializer.data)
+    except Outfit.DoesNotExist:
+        return Response({'error': 'Outfit not found'}, status=404)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_post_likes(request, post_id):
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return Response({"error": "Post not found"}, status=404)
 
-    wardrobe_qs = Wardrobe.objects.filter(user=request.user)
-    if mode == 'help' and selected_item_id:
-        try:
-            selected_item = wardrobe_qs.get(id=selected_item_id)
-            wardrobe_qs = wardrobe_qs.exclude(id=selected_item.id)
-            wardrobe_qs = list(wardrobe_qs) + [selected_item]  # ensure selected item is included
-        except Wardrobe.DoesNotExist:
-            return Response({'error': 'Selected item not found'}, status=404)
-
-    best_outfit_ids = generate_outfit_from_items(wardrobe_qs)
-
-    if not best_outfit_ids:
-        return Response({'message': 'No suitable outfit found'}, status=204)
-
-    return Response({'recommended_item_ids': best_outfit_ids}, status=200)
+    liked_users = post.likes.all().select_related('user__profile')
+    data = [
+        {
+            "id": like.user.id,
+            "username": like.user.username,
+            "profile_picture": (
+                request.build_absolute_uri(like.user.profile.profile_picture.url)
+                if like.user.profile.profile_picture else None
+            )
+        }
+        for like in liked_users
+    ]
+    return Response(data)

@@ -16,7 +16,7 @@ from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import api_view, permission_classes, parser_classes
-from .Aimodels.ai_outfit_generator import generate_outfit_from_items
+from django.db import models
 
 
 def is_valid_email(email):

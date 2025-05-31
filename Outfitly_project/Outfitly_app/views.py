@@ -16,6 +16,7 @@ from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import api_view, permission_classes, parser_classes
+from .Aimodels.ai_outfit_generator import generate_outfit_from_items
 
 
 def is_valid_email(email):
@@ -397,3 +398,30 @@ def get_all_posts(request):
         response_data.append(serialized_post)
 
     return Response(response_data, status=status.HTTP_200_OK)
+
+# ✅ Add this at the very bottom of the file
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_ai_outfit(request):
+    """
+    Accepts: { selected_item_id (optional), mode: 'truly' or 'help' }
+    Returns: list of wardrobe item IDs forming the best outfit
+    """
+    selected_item_id = request.data.get('selected_item_id')
+    mode = request.data.get('mode', 'truly')
+
+    wardrobe_qs = Wardrobe.objects.filter(user=request.user)
+    if mode == 'help' and selected_item_id:
+        try:
+            selected_item = wardrobe_qs.get(id=selected_item_id)
+            wardrobe_qs = wardrobe_qs.exclude(id=selected_item.id)
+            wardrobe_qs = list(wardrobe_qs) + [selected_item]  # ensure selected item is included
+        except Wardrobe.DoesNotExist:
+            return Response({'error': 'Selected item not found'}, status=404)
+
+    best_outfit_ids = generate_outfit_from_items(wardrobe_qs)
+
+    if not best_outfit_ids:
+        return Response({'message': 'No suitable outfit found'}, status=204)
+
+    return Response({'recommended_item_ids': best_outfit_ids}, status=200)

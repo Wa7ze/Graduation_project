@@ -11,7 +11,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
-
+    total_likes = serializers.SerializerMethodField()
+    
     class Meta:
         model = UserProfile
         fields = [
@@ -24,8 +25,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'followers_count',
             'following_count',
             'is_following',
+            'total_likes',
         ]
-
+    def get_total_likes(self, obj):
+        # Efficient aggregate count
+        from .models import Post
+        return Post.objects.filter(user=obj.user).aggregate(total=serializers.models.Count('likes'))['total'] or 0
     def get_user(self, obj):
         request = self.context.get('request')
         return {

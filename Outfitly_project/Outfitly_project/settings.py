@@ -86,7 +86,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',  # Correct
         'NAME': 'outfitly_data',
-        'USER': 'mazen',
+        'USER': 'hnm',
         'PASSWORD': 'hnm12345',
         'HOST': 'localhost',  # Or your server IP if remote
         'PORT': '5432',  # Default PostgreSQL port   
